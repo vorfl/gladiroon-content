@@ -1,0 +1,35 @@
+name: Refresh Instagram token
+
+on:
+  schedule:
+    # 1st and 15th of each month; the token lives 60 days
+    - cron: "41 3 1,15 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: instagram-token
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Refresh and store
+        env:
+          IG_TOKEN: ${{ secrets.IG_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::Secret GH_PAT is missing, cannot save the refreshed token."
+            exit 1
+          fi
+          NEW="$(python3 scripts/robot.py refresh)"
+          echo "::add-mask::$NEW"
+          gh secret set IG_TOKEN --repo "$GITHUB_REPOSITORY" --body "$NEW"
+          echo "IG_TOKEN updated."

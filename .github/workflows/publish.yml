@@ -1,0 +1,43 @@
+name: Publish to Instagram
+
+on:
+  schedule:
+    # every 15 min, off the :00 mark (GitHub queues :00 runs and delays them)
+    - cron: "7,22,37,52 * * * *"
+  push:
+    branches: [main]
+    paths: ["queue/**"]
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "check = only verify token and queue · publish = post what is due"
+        type: choice
+        options: [check, publish]
+        default: check
+
+permissions:
+  contents: write
+
+concurrency:
+  group: instagram-publish
+  cancel-in-progress: false
+
+jobs:
+  robot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898299+github-actions[bot]@users.noreply.github.com"
+
+      - name: Run robot
+        env:
+          MODE: ${{ github.event.inputs.mode || 'publish' }}
+          IG_TOKEN: ${{ secrets.IG_TOKEN }}
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          PUBLISHING_ENABLED: ${{ vars.PUBLISHING_ENABLED }}
+        run: python3 scripts/robot.py "$MODE"
