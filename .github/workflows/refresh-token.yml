@@ -30,6 +30,10 @@ jobs:
             exit 1
           fi
           NEW="$(python3 scripts/robot.py refresh)"
+          if [ -z "$NEW" ]; then
+            echo "Nothing to refresh for this token type."
+            exit 0
+          fi
           echo "::add-mask::$NEW"
           gh secret set IG_TOKEN --repo "$GITHUB_REPOSITORY" --body "$NEW"
           echo "IG_TOKEN updated."

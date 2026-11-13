@@ -2,8 +2,9 @@
 """
 Gradino Studio content robot (repo: gradino-content).
 
-Publishes due jobs from queue/ to Instagram through the
-Instagram API with Instagram Login (host graph.instagram.com).
+Publishes due jobs from queue/ to Instagram through Meta's Graph API.
+The host is picked by the token: graph.instagram.com (Instagram login)
+or graph.facebook.com (Unified login / Facebook Login for Business).
 Standard library only, so the GitHub runner needs no installs.
 
 Commands
@@ -14,9 +15,10 @@ Commands
 
 Env
   IG_TOKEN            Instagram user access token (secret)
-  IG_USER_ID          optional; read from /me when empty
+  IG_USER_ID          Instagram account ID; required for graph.facebook.com tokens
   PUBLISHING_ENABLED  "true" to allow real publishing
   GRAPH_VERSION       default v26.0
+  GRAPH_HOST          optional; force https://graph.instagram.com or https://graph.facebook.com
   MEDIA_BASE_URL      optional override for public file URLs
 """
 from __future__ import annotations
@@ -42,7 +44,6 @@ FAILED = ROOT / "failed"
 
 GRAPH = "https://graph.instagram.com"
 VERSION = os.environ.get("GRAPH_VERSION", "v26.0")
-API = f"{GRAPH}/{VERSION}"
 TZ = ZoneInfo("Europe/Berlin")
 
 MAX_ATTEMPTS = 3
@@ -225,8 +226,42 @@ def token() -> str:
     return t
 
 
-def api(method: str, path: str, params: dict | None = None, base: str = API):
-    url = f"{base}/{path}"
+HOSTS = ["https://graph.instagram.com", "https://graph.facebook.com"]
+_BASE: str | None = None
+
+
+def api_base() -> str:
+    """Pick the Graph host that accepts the token.
+
+    Dashboard tokens from 'API setup with Instagram login' work on
+    graph.instagram.com; tokens from Meta's newer Unified login
+    (Facebook Login for Business) work on graph.facebook.com.
+    GRAPH_HOST forces one host.
+    """
+    global _BASE
+    if _BASE:
+        return _BASE
+    forced = os.environ.get("GRAPH_HOST", "").strip()
+    last = None
+    for host in ([forced] if forced else HOSTS):
+        base = f"{host.rstrip('/')}/{VERSION}"
+        try:
+            api("GET", "me", {"fields": "id"}, base=base)
+        except ApiError as e:
+            last = e
+            continue
+        _BASE = base
+        log(f"token accepted by {host}")
+        return base
+    raise ApiError({"message": f"token rejected by {', '.join(HOSTS)}: {last}"})
+
+
+def on_instagram_host() -> bool:
+    return api_base().startswith("https://graph.instagram.com")
+
+
+def api(method: str, path: str, params: dict | None = None, base: str | None = None):
+    url = f"{base or api_base()}/{path}"
     headers = {"Authorization": f"Bearer {token()}"}
     data = None
     if method == "GET" and params:
@@ -260,7 +295,10 @@ def ig_user_id() -> str:
     uid = os.environ.get("IG_USER_ID", "").strip()
     if uid:
         return uid
-    return str(api("GET", "me", {"fields": "user_id"})["user_id"])
+    if on_instagram_host():
+        return str(api("GET", "me", {"fields": "user_id"})["user_id"])
+    sys.exit("IG_USER_ID secret is empty. With a graph.facebook.com token the robot needs "
+             "the Instagram account ID (App Dashboard → Instagram API → Instagram-Konto).")
 
 
 def public_url(rel: str) -> str:
@@ -427,11 +465,21 @@ def move(path: Path, job: dict, folder: Path):
 # ------------------------------------------------------------------ commands
 
 def cmd_check(_args) -> int:
-    me = api("GET", "me", {"fields": "user_id,username,account_type,media_count"})
-    log(f"token OK · @{me.get('username')} · {me.get('account_type')} · "
-        f"{me.get('media_count')} posts · IG user id {me.get('user_id')}")
     try:
-        lim = api("GET", f"{me['user_id']}/content_publishing_limit",
+        base = api_base()
+    except ApiError as e:
+        log(f"✗ {e}")
+        return 1
+    me = {}
+    if on_instagram_host():
+        me = api("GET", "me", {"fields": "user_id,username,account_type,media_count"})
+    uid = ig_user_id()
+    acct = api("GET", uid, {"fields": "username,media_count"})
+    log(f"token OK · host {base} · @{acct.get('username')} · "
+        f"{me.get('account_type', 'type n/a on this host')} · "
+        f"{acct.get('media_count')} posts · IG user id {uid}")
+    try:
+        lim = api("GET", f"{uid}/content_publishing_limit",
                   {"fields": "quota_usage,config"})
         row = (lim.get("data") or [{}])[0]
         log(f"publishing quota used: {row.get('quota_usage')} / "
@@ -492,6 +540,14 @@ def cmd_publish(_args) -> int:
 
 
 def cmd_refresh(_args) -> int:
+    try:
+        if not on_instagram_host():
+            log("token works on graph.facebook.com (Unified login); ig_refresh_token does not "
+                "apply. Check the expiry in Meta's Access Token Debugger.")
+            return 0
+    except ApiError as e:
+        log(f"refresh skipped, token rejected: {e}")
+        return 1
     url = f"{GRAPH}/refresh_access_token?" + urllib.parse.urlencode(
         {"grant_type": "ig_refresh_token", "access_token": token()})
     try:
