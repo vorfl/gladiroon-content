@@ -1,6 +1,7 @@
-# gladiroon-content
+# Gradino Studio — content
 
-Очередь публикаций для Instagram @gladiroon.studio и робот, который их публикует.
+Очередь публикаций для Instagram студии Gradino Studio (@gradino.studio; до смены handle — @gladiroon.studio) и робот, который их публикует.
+Репозиторий пока называется `gladiroon-content`; план — переименовать в `gradino-content` (робот берёт имя репозитория из `GITHUB_REPOSITORY`, код менять не нужно).
 Работает через официальный Instagram API with Instagram Login (graph.instagram.com) и GitHub Actions.
 
 ## Как это работает
