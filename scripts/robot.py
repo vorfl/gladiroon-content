@@ -497,7 +497,8 @@ def cmd_publish(_args) -> int:
     now = datetime.now(timezone.utc)
     jobs = load_jobs()
     due = [(p, j) for p, j in jobs
-           if "_parse_error" in j or validate(j)[0] or parse_time(j.get("publish_at")) <= now]
+           if "_parse_error" in j or validate(j)[0] or not j.get("publish_at")
+           or parse_time(j.get("publish_at")) <= now]
     log(f"{len(jobs)} in queue, {len(due)} due")
     if not due:
         return 0
