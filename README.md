@@ -2,7 +2,7 @@
 
 Очередь публикаций для Instagram студии Gradino Studio (@gradino.studio; до смены handle — @gladiroon.studio) и робот, который их публикует.
 Репозиторий переименован из `gladiroon-content` в `gradino-content` 13.11.2026; робот берёт имя из `GITHUB_REPOSITORY`, старые ссылки GitHub перенаправляет.
-Работает через официальный Instagram API with Instagram Login (graph.instagram.com) и GitHub Actions.
+Работает через официальный Instagram API и GitHub Actions. Meta-приложение «Gradino Publisher» (ID 1100696209443736), вход «Unified login» через Business-портфолио «Gradino Studio»; токен системного пользователя работает на graph.facebook.com. Робот сам определяет хост по токену.
 
 ## Как это работает
 
@@ -44,9 +44,9 @@ Settings → Secrets and variables → Actions:
 
 | Имя | Где | Что |
 |---|---|---|
-| `IG_TOKEN` | Secrets | токен Instagram (60 дней, обновляется сам) |
-| `IG_USER_ID` | Secrets | необязательно, робот узнаёт сам |
-| `GH_PAT` | Secrets | fine-grained токен GitHub только на этот репозиторий, право *Secrets: Read and write* — нужен, чтобы сохранить обновлённый IG_TOKEN |
+| `IG_TOKEN` | Secrets | токен системного пользователя Meta (бессрочный). Новый: Meta → Gradino Publisher → Anwendungsfälle → Instagram API → «2. Zugriffstokens generieren» |
+| `IG_USER_ID` | Secrets | ID аккаунта @gradino.studio: 17841466196811029 (нужен для graph.facebook.com) |
+| `GH_PAT` | Secrets | не нужен, пока токен бессрочный. Понадобится только для 60-дневного токена Instagram-login: fine-grained, только этот репозиторий, *Secrets: Read and write* |
 | `PUBLISHING_ENABLED` | Variables | `true` — робот публикует. Любое другое значение — пауза |
 
 Секреты видит только GitHub. В коде и логах их нет.
@@ -59,4 +59,4 @@ Settings → Secrets and variables → Actions:
 
 - Репозиторий публичный: Instagram скачивает файлы по открытой ссылке. Всё в `media/` и `queue/` видно до публикации.
 - GitHub отключает расписание в публичном репозитории, если 60 дней не было коммитов. Тогда: Actions → включить снова.
-- Токен обновляется 1-го и 15-го числа. Если обновление не прошло 60 дней подряд, токен умрёт — нужно сгенерировать новый в Meta.
+- Токен бессрочный, но Meta отзывает его, если сменить пароль Facebook, удалить приложение или убрать аккаунт из портфолио. Тогда `check` покажет ошибку — сгенерировать новый токен и заменить `IG_TOKEN`.

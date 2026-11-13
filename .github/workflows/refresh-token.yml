@@ -1,8 +1,12 @@
 name: Refresh Instagram token
 
+# The current token is a Meta system-user token (Unified login) that never
+# expires, so this run normally only confirms that nothing needs refreshing.
+# It renews tokens only if IG_TOKEN is ever swapped for a 60-day Instagram-login token.
+
 on:
   schedule:
-    # 1st and 15th of each month; the token lives 60 days
+    # 1st and 15th of each month
     - cron: "41 3 1,15 * *"
   workflow_dispatch:
 
@@ -23,17 +27,18 @@ jobs:
       - name: Refresh and store
         env:
           IG_TOKEN: ${{ secrets.IG_TOKEN }}
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
           GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
-          if [ -z "$GH_TOKEN" ]; then
-            echo "::error::Secret GH_PAT is missing, cannot save the refreshed token."
-            exit 1
-          fi
           NEW="$(python3 scripts/robot.py refresh)"
           if [ -z "$NEW" ]; then
             echo "Nothing to refresh for this token type."
             exit 0
           fi
           echo "::add-mask::$NEW"
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::Token was refreshed but secret GH_PAT is missing, so it cannot be saved."
+            exit 1
+          fi
           gh secret set IG_TOKEN --repo "$GITHUB_REPOSITORY" --body "$NEW"
           echo "IG_TOKEN updated."
