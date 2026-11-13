@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Gradino Studio content robot (repo: gladiroon-content).
+Gradino Studio content robot (repo: gradino-content).
 
 Publishes due jobs from queue/ to Instagram through the
 Instagram API with Instagram Login (host graph.instagram.com).
